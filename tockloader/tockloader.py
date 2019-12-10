@@ -22,6 +22,7 @@ from .exceptions import TockLoaderException
 from .tbfh import TBFHeader
 from .jlinkexe import JLinkExe
 from .openocd import OpenOCD, collect_temp_files
+from .bossa import Bossa
 
 class TockLoader:
 	'''
@@ -77,6 +78,8 @@ class TockLoader:
 			self.channel = JLinkExe(args)
 		elif hasattr(self.args, 'openocd') and self.args.openocd:
 			self.channel = OpenOCD(args)
+		elif hasattr(self.args, 'bossa') and self.args.bossa:
+			self.channel = Bossa(args)
 		else:
 			self.channel = BootloaderSerial(args)
 

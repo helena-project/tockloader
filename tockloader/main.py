@@ -359,6 +359,9 @@ def main ():
 	parent_jtag.add_argument('--openocd',
 		action='store_true',
 		help='Use OpenOCD to flash.')
+	parent_jtag.add_argument('--bossa',
+		action='store_true',
+		help='Use BOSSA to program the board.')
 	parent_jtag.add_argument('--jtag-device',
 		default='cortex-m0',
 		help='The device type to pass to JLinkExe. Useful for initial commissioning. Deprecated. Use --jlink-device instead.')
