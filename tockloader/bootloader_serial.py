@@ -520,7 +520,25 @@ class BootloaderSerial(BoardInterface):
 		if not entered_bootloader:
 			# If that didn't work, either because the bootloader already active
 			# or board doesn't support it, try the DTR/RTS method.
-			self._toggle_bootloader_entry_DTR_RTS()
+			try:
+				# Wrap in try block because this can fail if the serial port was
+				# _actually_ closed in the
+				# `_toggle_bootloader_entry_baud_rate()` step, but that function
+				# did not detect it. This code is all a bunch of data races and
+				# balancing not making users wait a long time. So we insert
+				# various sleeps, but they may not always be long enough, so
+				# there can be false/missed detections.
+				self._toggle_bootloader_entry_DTR_RTS()
+			except:
+				# If we could not toggle DTR/RTS then there is something wrong
+				# with the serial port. Hopefully this means that we are in the
+				# bootloader and can continue normally. If not, then the
+				# PING/PONG check below should catch it. Let's be optimistic.
+				#
+				# Retry existing serial port.
+				self._configure_serial_port(self.sp.port)
+				self.sp.open()
+
 
 		# Make sure the bootloader is actually active and we can talk to it.
 		try:
