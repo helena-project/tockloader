@@ -412,43 +412,11 @@ class BootloaderSerial(BoardInterface):
 		# The select line can go back high
 		self.sp.rts = 0
 
-	def _toggle_bootloader_entry_baud_rate (self):
+	def _wait_for_bootloader_serial_port (self):
 		'''
-		Set the baud rate to 1200 so that the chip will restart into the
-		bootloader (if that feature exists).
-
-		Returns `True` if it successfully started the bootloader, `False`
-		otherwise.
+		Wait for the serial port to re-appear, aka the bootloader has started.
 		'''
 
-		# Change the baud rate to tell the board to reset into the bootloader.
-		self.sp.baudrate = 1200
-
-		# Now try to read from the serial port. If the changed baud rate caused
-		# the chip to reset into bootloader mode, this read should fail. If it
-		# doesn't fail, then either this chip doesn't support the baud rate chip
-		# (e.g. it has an FTDI chip) or it is already in the bootloader.
-		try:
-			# Give the chip some time to reset
-			time.sleep(0.1)
-			# Read which should timeout quickly.
-			test_read = self.sp.read(10)
-			# If we get here, looks like this entry mode won't work, so we can
-			# exit now.
-			if self.args.debug:
-				logging.debug('Baud rate bootloader entry no-op.')
-				if len(test_read) > 0:
-					logging.debug('Read "{}" from board'.format(test_read))
-
-			# Need to reset the baud rate to its original value.
-			self.sp.baudrate = 115200
-			return False
-		except:
-			# Read failed. This should mean the chip reset. Continue with this
-			# function.
-			pass
-
-		# Wait for the serial port to re-appear, aka the bootloader has started.
 		logging.info('Waiting for the bootloader to start')
 
 		for i in range(0, 30):
@@ -503,6 +471,45 @@ class BootloaderSerial(BoardInterface):
 		if self.args.debug:
 			logging.debug('  Using port {} for the bootloader'.format(port))
 
+		return port
+
+	def _toggle_bootloader_entry_baud_rate (self):
+		'''
+		Set the baud rate to 1200 so that the chip will restart into the
+		bootloader (if that feature exists).
+
+		Returns `True` if it successfully started the bootloader, `False`
+		otherwise.
+		'''
+
+		# Change the baud rate to tell the board to reset into the bootloader.
+		self.sp.baudrate = 1200
+
+		# Now try to read from the serial port. If the changed baud rate caused
+		# the chip to reset into bootloader mode, this read should fail. If it
+		# doesn't fail, then either this chip doesn't support the baud rate chip
+		# (e.g. it has an FTDI chip) or it is already in the bootloader.
+		try:
+			# Give the chip some time to reset
+			time.sleep(0.1)
+			# Read which should timeout quickly.
+			test_read = self.sp.read(10)
+			# If we get here, looks like this entry mode won't work, so we can
+			# exit now.
+			if self.args.debug:
+				logging.debug('Baud rate bootloader entry no-op.')
+				if len(test_read) > 0:
+					logging.debug('Read "{}" from board'.format(test_read))
+
+			# Need to reset the baud rate to its original value.
+			self.sp.baudrate = 115200
+			return False
+		except:
+			# Read failed. This should mean the chip reset. Continue with this
+			# function.
+			pass
+
+		port = self._wait_for_bootloader_serial_port()
 		self._configure_serial_port(port)
 		self.sp.open()
 
@@ -535,8 +542,9 @@ class BootloaderSerial(BoardInterface):
 				# bootloader and can continue normally. If not, then the
 				# PING/PONG check below should catch it. Let's be optimistic.
 				#
-				# Retry existing serial port.
-				self._configure_serial_port(self.sp.port)
+				# Find bootloader port and try to use it.
+				port = self._wait_for_bootloader_serial_port()
+				self._configure_serial_port(port)
 				self.sp.open()
 
 
@@ -549,7 +557,7 @@ class BootloaderSerial(BoardInterface):
 			try:
 				# Give it another go
 				time.sleep(1)
-				self._toggle_bootloader_entry()
+				self._toggle_bootloader_entry_DTR_RTS()
 				self._ping_bootloader_and_wait_for_response()
 			except KeyboardInterrupt:
 				raise TockLoaderException('Exiting.')
