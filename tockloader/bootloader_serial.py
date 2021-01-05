@@ -210,6 +210,33 @@ class BootloaderSerial(BoardInterface):
 		self.sp.dtr = 0
 		self.sp.rts = 0
 
+	def _open_serial_port (self):
+		'''
+		Helper function for calling `self.sp.open()`.
+
+		Serial ports on different OSes and systems can be finicky, and this
+		enables retries to try to hide failures.
+		'''
+		# On ubuntu 20.04 in Jan 2021, sometimes connecting to the serial port
+		# fails the first several times. This attempts to address that by simply
+		# retrying a whole bunch. On most systems this should just work and
+		# doesn't add any overhead.
+		saved_exception = None
+		for i in range(0, 15):
+			try:
+				self.sp.open()
+				break
+			except Exception as e:
+				saved_exception = e
+				if self.args.debug:
+					logging.debug('Retrying opening serial port (attempt {})'.format(i+1))
+				time.sleep(0.1)
+		else:
+			# Opening failed 15 times. I guess this is a real problem??
+			logging.error('Failed to open serial port.')
+			logging.error('Error: {}'.format(saved_exception))
+			raise TockLoaderException('Unable to open serial port')
+
 	def open_link_to_board (self, listen=False):
 		'''
 		Open the serial port to the chip/bootloader.
@@ -304,22 +331,7 @@ class BootloaderSerial(BoardInterface):
 				self.server_event.wait()
 				logging.info('Resuming listening...')
 
-		# on ubuntu 20.04, sometimes connecting to the serial port fails the first several times. This
-		# attempts to address that.
-		num_exceptions = 0
-		while True:
-			try:
-				self.sp.open()
-				break
-			except Exception as e:
-				if num_exceptions > 15:
-					logging.info('failed to connect, is the board connected?')
-					raise e
-				logging.info('trying to connect...')
-				time.sleep(0.1)
-				num_exceptions += 1
-
-
+		self._open_serial_port()
 
 		# Do a delay if we are skipping the bootloader entry process (which
 		# would normally have a delay in it). We need to send a dummy message
@@ -526,20 +538,7 @@ class BootloaderSerial(BoardInterface):
 
 		port = self._wait_for_bootloader_serial_port()
 		self._configure_serial_port(port)
-		# on ubuntu 20.04, sometimes connecting to the serial port fails the first several times. This
-		# attempts to address that.
-		num_exceptions = 0
-		while True:
-			try:
-				self.sp.open()
-				break
-			except Exception as e:
-				if num_exceptions > 15:
-					logging.info('failed to connect, is the board connected?')
-					raise e
-				logging.info('trying to connect...')
-				time.sleep(0.1)
-				num_exceptions += 1
+		self._open_serial_port()
 
 		# Board restarted into the bootloader (or at least a new serial port)
 		# and we re-setup self.sp to use it.
@@ -573,7 +572,7 @@ class BootloaderSerial(BoardInterface):
 				# Find bootloader port and try to use it.
 				port = self._wait_for_bootloader_serial_port()
 				self._configure_serial_port(port)
-				self.sp.open()
+				self._open_serial_port()
 
 
 		# Make sure the bootloader is actually active and we can talk to it.
