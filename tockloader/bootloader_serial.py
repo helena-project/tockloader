@@ -304,7 +304,22 @@ class BootloaderSerial(BoardInterface):
 				self.server_event.wait()
 				logging.info('Resuming listening...')
 
-		self.sp.open()
+		# on ubuntu 20.04, sometimes connecting to the serial port fails the first several times. This
+		# attempts to address that.
+		num_exceptions = 0
+		while True:
+			try:
+				self.sp.open()
+				break
+			except Exception as e:
+				if num_exceptions > 15:
+					logging.info('failed to connect, is the board connected?')
+					raise e
+				logging.info('trying to connect...')
+				time.sleep(0.1)
+				num_exceptions += 1
+
+
 
 		# Do a delay if we are skipping the bootloader entry process (which
 		# would normally have a delay in it). We need to send a dummy message
@@ -511,7 +526,20 @@ class BootloaderSerial(BoardInterface):
 
 		port = self._wait_for_bootloader_serial_port()
 		self._configure_serial_port(port)
-		self.sp.open()
+		# on ubuntu 20.04, sometimes connecting to the serial port fails the first several times. This
+		# attempts to address that.
+		num_exceptions = 0
+		while True:
+			try:
+				self.sp.open()
+				break
+			except Exception as e:
+				if num_exceptions > 15:
+					logging.info('failed to connect, is the board connected?')
+					raise e
+				logging.info('trying to connect...')
+				time.sleep(0.1)
+				num_exceptions += 1
 
 		# Board restarted into the bootloader (or at least a new serial port)
 		# and we re-setup self.sp to use it.
